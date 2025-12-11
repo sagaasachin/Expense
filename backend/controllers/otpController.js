@@ -5,7 +5,8 @@ dotenv.config();
 let otpStore = {};
 
 // -------------------- EMAIL WHITELIST --------------------
-const allowedEmails = process.env.ALLOWED_EMAILS.split(",");
+// FIX: Prevent crash if variable is missing
+const allowedEmails = (process.env.ALLOWED_EMAILS || "").split(",");
 
 // -------------------- MAIL SETUP -------------------------
 const transporter = nodemailer.createTransport({
@@ -32,8 +33,12 @@ export async function sendOTP(req, res) {
     return res.json({ success: false, message: "Email required" });
   }
 
-  // ❗ Block email if not whitelisted
-  if (!allowedEmails.includes(email)) {
+  // If whitelist missing → allow all emails
+  if (
+    allowedEmails.length > 0 &&
+    allowedEmails[0] !== "" &&
+    !allowedEmails.includes(email)
+  ) {
     return res.status(403).json({
       success: false,
       message: "This email is not allowed to access the system",
@@ -43,7 +48,6 @@ export async function sendOTP(req, res) {
   const otp = generateOTP();
   otpStore[email] = otp;
 
-  // Auto-clear OTP after X ms (default: 2 minutes)
   const expireTime = parseInt(process.env.OTP_EXPIRE_MS) || 120000;
   setTimeout(() => delete otpStore[email], expireTime);
 
