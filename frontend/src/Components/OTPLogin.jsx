@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
 
+// =========================
+// 🔗 YOUR LIVE BACKEND API
+// =========================
+const API_BASE = "https://expense-backend-z8da.onrender.com/api";
+
 export default function OTPLogin({ children }) {
   const [step, setStep] = useState("email"); // email → otp → success
   const [email, setEmail] = useState("");
@@ -8,21 +13,22 @@ export default function OTPLogin({ children }) {
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(false);
 
-  // Countdown timer
+  // 🕒 Countdown for resend OTP
   useEffect(() => {
     if (timeLeft <= 0) return;
     const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
     return () => clearTimeout(timer);
   }, [timeLeft]);
 
-  // SEND OTP
+  // =========================
+  // 📩 SEND OTP
+  // =========================
   const sendOTP = async () => {
     if (!email) return alert("Enter email");
 
     setLoading(true);
-
     try {
-      const res = await fetch("http://localhost:5000/api/otp/send-otp", {
+      const res = await fetch(`${API_BASE}/otp/send-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -43,14 +49,15 @@ export default function OTPLogin({ children }) {
     }
   };
 
-  // VERIFY OTP
+  // =========================
+  // 🔐 VERIFY OTP
+  // =========================
   const verifyOTP = async () => {
     if (!otp) return alert("Enter OTP");
 
     setLoading(true);
-
     try {
-      const res = await fetch("http://localhost:5000/api/otp/verify-otp", {
+      const res = await fetch(`${API_BASE}/otp/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp }),
@@ -70,7 +77,9 @@ export default function OTPLogin({ children }) {
     }
   };
 
-  // If OTP verified → show the protected app
+  // =================================
+  // If OTP verified → show protected app
+  // =================================
   if (verified) return children;
 
   return (
@@ -135,7 +144,9 @@ export default function OTPLogin({ children }) {
   );
 }
 
-// ---------------- STYLES ----------------
+// ==========================
+// 💅 STYLES
+// ==========================
 const styles = {
   container: {
     height: "100vh",
