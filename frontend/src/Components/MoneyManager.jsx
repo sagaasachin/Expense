@@ -22,7 +22,8 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
 // Correct backend API base
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = "https://expense-backend-z8da.onrender.com/api";
+
 
 const MoneyManager = () => {
   // Transaction form state
