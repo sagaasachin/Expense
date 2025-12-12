@@ -1,32 +1,48 @@
 import React, { useState, useEffect } from "react";
+import {
+  Box,
+  Card,
+  CardContent,
+  TextField,
+  Typography,
+  Button,
+  CircularProgress,
+  useMediaQuery,
+} from "@mui/material";
 
-// =========================
-// 🔗 YOUR LIVE BACKEND API
-// =========================
 const API_BASE = "https://expense-backend-z8da.onrender.com/api";
 
 export default function OTPLogin({ children }) {
-  const [step, setStep] = useState("email"); // email → otp → success
+  const [step, setStep] = useState("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [timeLeft, setTimeLeft] = useState(0);
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  // 🕒 Countdown for resend OTP
+  const isMobile = useMediaQuery("(max-width:600px)");
+
+  // Countdown timer
   useEffect(() => {
     if (timeLeft <= 0) return;
-    const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+    const timer = setTimeout(() => setTimeLeft((t) => t - 1), 1000);
     return () => clearTimeout(timer);
   }, [timeLeft]);
 
-  // =========================
-  // 📩 SEND OTP
-  // =========================
+  // Simple email validation
+  const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  // Send OTP
   const sendOTP = async () => {
-    if (!email) return alert("Enter email");
+    setErrorMsg("");
+
+    if (!email) return setErrorMsg("Email is required");
+    if (!isValidEmail(email)) return setErrorMsg("Enter a valid email");
+    if (timeLeft > 0) return; // prevent resending during countdown
 
     setLoading(true);
+
     try {
       const res = await fetch(`${API_BASE}/otp/send-otp`, {
         method: "POST",
@@ -41,21 +57,24 @@ export default function OTPLogin({ children }) {
         setStep("otp");
         setTimeLeft(60);
       } else {
-        alert(data.message || "Failed to send OTP");
+        setErrorMsg(data.message || "Failed to send OTP");
       }
     } catch (err) {
       setLoading(false);
-      alert("Server error. Check backend.");
+      setErrorMsg(
+        "Server taking long to wake up (Render free tier). Try again."
+      );
     }
   };
 
-  // =========================
-  // 🔐 VERIFY OTP
-  // =========================
+  // Verify OTP
   const verifyOTP = async () => {
-    if (!otp) return alert("Enter OTP");
+    setErrorMsg("");
+
+    if (!otp) return setErrorMsg("Enter your OTP");
 
     setLoading(true);
+
     try {
       const res = await fetch(`${API_BASE}/otp/verify-otp`, {
         method: "POST",
@@ -69,125 +88,156 @@ export default function OTPLogin({ children }) {
       if (data.success) {
         setVerified(true);
       } else {
-        alert(data.message || "Incorrect OTP");
+        setErrorMsg("Incorrect OTP. Try again.");
       }
     } catch (err) {
       setLoading(false);
-      alert("Server error. Check backend.");
+      setErrorMsg("Server error. Please try again.");
     }
   };
 
-  // =================================
-  // If OTP verified → show protected app
-  // =================================
   if (verified) return children;
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        {/* EMAIL INPUT */}
-        {step === "email" && (
-          <>
-            <h2>🔐 Login with Email OTP</h2>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        width: "100%",
+        background: "linear-gradient(135deg, #1e3c72, #2a5298)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        p: isMobile ? 1.5 : 3,
+      }}
+    >
+      <Card
+        sx={{
+          width: "100%",
+          maxWidth: isMobile ? 330 : 380,
+          borderRadius: "18px",
+          boxShadow: "0 8px 26px rgba(0,0,0,0.25)",
+          backdropFilter: "blur(12px)",
+        }}
+      >
+        <CardContent sx={{ textAlign: "center", p: isMobile ? 3 : 4 }}>
+          <Typography
+            variant={isMobile ? "h6" : "h5"}
+            sx={{ mb: 1, fontWeight: 700 }}
+          >
+            🔐 Secure Login
+          </Typography>
 
-            <input
-              type="email"
-              placeholder="Enter your email"
-              style={styles.input}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+          <Typography
+            sx={{
+              mb: 3,
+              color: "#ddd",
+              fontSize: isMobile ? "13px" : "15px",
+            }}
+          >
+            Enter your email to receive a login OTP
+          </Typography>
 
-            <button style={styles.button} onClick={sendOTP} disabled={loading}>
-              {loading ? "Sending..." : "Send OTP"}
-            </button>
-          </>
-        )}
+          {/* Error Message */}
+          {errorMsg && (
+            <Typography sx={{ color: "#ff9e9e", mb: 2, fontSize: 14 }}>
+              {errorMsg}
+            </Typography>
+          )}
 
-        {/* OTP INPUT */}
-        {step === "otp" && (
-          <>
-            <h2>📩 Enter the OTP</h2>
+          {/* EMAIL STEP */}
+          {step === "email" && (
+            <>
+              <TextField
+                label="Email Address"
+                type="email"
+                fullWidth
+                size="small"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                sx={{ mb: 3 }}
+              />
 
-            <input
-              type="text"
-              placeholder="Enter 6-digit OTP"
-              style={styles.input}
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-            />
-
-            <button
-              style={styles.button}
-              onClick={verifyOTP}
-              disabled={loading}
-            >
-              {loading ? "Verifying..." : "Verify OTP"}
-            </button>
-
-            {/* TIMER */}
-            {timeLeft > 0 ? (
-              <p style={{ marginTop: "10px" }}>Resend OTP in {timeLeft}s</p>
-            ) : (
-              <button
-                style={styles.resendButton}
+              <Button
+                variant="contained"
+                fullWidth
+                size={isMobile ? "medium" : "large"}
                 onClick={sendOTP}
                 disabled={loading}
+                sx={{
+                  py: isMobile ? 1 : 1.3,
+                  fontSize: isMobile ? "14px" : "16px",
+                }}
               >
-                Resend OTP
-              </button>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+                {loading ? (
+                  <CircularProgress size={26} sx={{ color: "white" }} />
+                ) : (
+                  "Send OTP"
+                )}
+              </Button>
+            </>
+          )}
+
+          {/* OTP STEP */}
+          {step === "otp" && (
+            <>
+              <TextField
+                label="Enter OTP"
+                type="text"
+                fullWidth
+                size="small"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                sx={{ mb: 3 }}
+              />
+
+              <Button
+                variant="contained"
+                fullWidth
+                size={isMobile ? "medium" : "large"}
+                onClick={verifyOTP}
+                disabled={loading}
+                sx={{
+                  py: isMobile ? 1 : 1.3,
+                  fontSize: isMobile ? "14px" : "16px",
+                }}
+              >
+                {loading ? (
+                  <CircularProgress size={26} sx={{ color: "white" }} />
+                ) : (
+                  "Verify OTP"
+                )}
+              </Button>
+
+              {/* Timer / Resend */}
+              {timeLeft > 0 ? (
+                <Typography
+                  sx={{
+                    mt: 2,
+                    color: "#eee",
+                    fontSize: isMobile ? "13px" : "14px",
+                  }}
+                >
+                  Resend OTP in {timeLeft}s
+                </Typography>
+              ) : (
+                <Button
+                  variant="text"
+                  sx={{
+                    mt: 1,
+                    color: "#fff",
+                    textTransform: "none",
+                    fontSize: isMobile ? "14px" : "15px",
+                    fontWeight: 600,
+                  }}
+                  onClick={sendOTP}
+                >
+                  Resend OTP
+                </Button>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </Box>
   );
 }
-
-// ==========================
-// 💅 STYLES
-// ==========================
-const styles = {
-  container: {
-    height: "100vh",
-    background: "linear-gradient(to bottom, #283048, #859398)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  card: {
-    background: "white",
-    padding: "25px",
-    borderRadius: "14px",
-    width: "300px",
-    textAlign: "center",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
-  },
-  input: {
-    width: "100%",
-    padding: "12px",
-    borderRadius: "8px",
-    border: "1px solid gray",
-    marginTop: "12px",
-    fontSize: "18px",
-  },
-  button: {
-    width: "100%",
-    padding: "12px",
-    marginTop: "15px",
-    background: "#283048",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "18px",
-    cursor: "pointer",
-  },
-  resendButton: {
-    marginTop: "10px",
-    background: "transparent",
-    border: "none",
-    color: "#283048",
-    fontSize: "16px",
-    cursor: "pointer",
-  },
-};
