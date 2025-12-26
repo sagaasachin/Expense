@@ -1,39 +1,17 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import dotenv from "dotenv";
+
 dotenv.config();
 
-// In-memory OTP store
-let otpStore = {};
-
-// -------------------- MAIL SETUP -------------------------
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // use STARTTLS
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-});
-
-
-// Verify transporter on startup
-transporter.verify((err) => {
-  if (err) {
-    console.error("❌ Mail transporter error:", err.message);
-  } else {
-    console.log("✅ Mail transporter ready");
-  }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // -------------------- OTP GENERATOR ----------------------
 function generateOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
-console.log("🔥 /send-otp route hit");
+
+// In-memory OTP store
+let otpStore = {};
 
 // -------------------- SEND OTP ---------------------------
 export async function sendOTP(req, res) {
@@ -41,7 +19,6 @@ export async function sendOTP(req, res) {
 
   try {
     const { email } = req.body;
-    console.log("📩 OTP request for:", email);
 
     if (!email) {
       return res
@@ -50,28 +27,42 @@ export async function sendOTP(req, res) {
     }
 
     const otp = generateOTP();
-    const expireMs = parseInt(process.env.OTP_EXPIRE_MS) || 120000;
+    const expireMs = 2 * 60 * 1000; // 2 minutes
 
     otpStore[email] = {
       otp,
       expiresAt: Date.now() + expireMs,
     };
 
-    await transporter.sendMail({
-      from: `"Expense App" <${process.env.EMAIL_USER}>`,
+    const { data, error } = await resend.emails.send({
+      from: "Expense App <onboarding@resend.dev>",
       to: email,
       subject: "Your OTP Code",
-      text: `Your OTP is ${otp}. It expires in 2 minutes.`,
+      html: `
+        <h2>Your OTP is: ${otp}</h2>
+        <p>This code will expire in 2 minutes.</p>
+      `,
     });
 
-    console.log("✅ OTP sent to:", email);
+    if (error) {
+      console.error("❌ Resend error:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send OTP email",
+      });
+    }
 
-    return res.json({ success: true, message: "OTP sent successfully" });
-  } catch (error) {
-    console.error("❌ Send OTP Error:", error.message);
+    console.log("✅ OTP sent via Resend to:", email, data?.id);
+
+    return res.json({
+      success: true,
+      message: "OTP sent successfully",
+    });
+  } catch (err) {
+    console.error("❌ Send OTP Error:", err.message);
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to send OTP",
+      message: "Server error while sending OTP",
     });
   }
 }
@@ -80,7 +71,6 @@ export async function sendOTP(req, res) {
 export function verifyOTP(req, res) {
   try {
     const { email, otp } = req.body;
-    console.log("🔎 Verifying OTP for:", email);
 
     if (!email || !otp) {
       return res.status(400).json({
@@ -114,14 +104,13 @@ export function verifyOTP(req, res) {
     }
 
     delete otpStore[email];
-    console.log("✅ OTP verified for:", email);
 
     return res.json({
       success: true,
       message: "OTP verified successfully",
     });
-  } catch (error) {
-    console.error("❌ Verify OTP Error:", error.message);
+  } catch (err) {
+    console.error("❌ Verify OTP Error:", err.message);
     return res.status(500).json({
       success: false,
       message: "OTP verification failed",
