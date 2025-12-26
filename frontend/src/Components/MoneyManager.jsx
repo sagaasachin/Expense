@@ -17,13 +17,23 @@ import {
   TableHead,
   TableRow,
   CssBaseline,
+  Grid,
 } from "@mui/material";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+
 // Correct backend API base
 const API_BASE = "https://expense-backend-z8da.onrender.com/api";
-
 
 const MoneyManager = () => {
   // Transaction form state
@@ -113,7 +123,19 @@ const MoneyManager = () => {
     });
   }, [entries, filterPerson, filterMonth]);
 
-  // Group and calculate running balances
+  // ===== Chart Data (Monthly Deposits vs Expenses) =====
+  const chartData = useMemo(() => {
+    const map = {};
+    filteredEntries.forEach((e) => {
+      const m = e.date.slice(0, 7);
+      if (!map[m]) map[m] = { month: m, deposit: 0, expense: 0 };
+      if (e.type === "deposit") map[m].deposit += e.amount;
+      else map[m].expense += e.amount;
+    });
+    return Object.values(map).sort((a, b) => a.month.localeCompare(b.month));
+  }, [filteredEntries]);
+
+  // Group and calculate running balances (original logic kept)
   const groupedData = useMemo(() => {
     const grouped = {};
     const persons = filterPerson === "all" ? uniquePersons : [filterPerson];
@@ -169,14 +191,16 @@ const MoneyManager = () => {
     return grouped;
   }, [filteredEntries, uniquePersons, filterPerson]);
 
-  // Format month
   const formatMonth = (month) => {
     const [year, mon] = month.split("-");
     const date = new Date(year, mon - 1);
-    return date.toLocaleString("default", { month: "long", year: "numeric" });
+    return date.toLocaleString("default", {
+      month: "long",
+      year: "numeric",
+    });
   };
 
-  // Export to Excel
+  // Export to Excel (unchanged)
   const exportToExcel = () => {
     if (entries.length === 0) {
       alert("No data to export");
@@ -213,160 +237,178 @@ const MoneyManager = () => {
     <>
       <CssBaseline />
       <Box
-        sx={{ minHeight: "100vh", width: "100vw", bgcolor: "#f0f4f8", p: 3 }}
+        sx={{
+          minHeight: "100vh",
+          width: "100%",
+          bgcolor: "#f0f4f8",
+          p: { xs: 1, sm: 3 },
+        }}
       >
         <Typography
           variant="h3"
-          sx={{ mb: 3, color: "#1976d2", textAlign: "center" }}
+          sx={{
+            mb: 3,
+            color: "#1976d2",
+            textAlign: "center",
+            fontSize: { xs: "1.8rem", sm: "2.5rem" },
+          }}
         >
-          Money Manager
+          Expense Tracker
         </Typography>
 
-        {/* Form */}
-        <Box
-          component="form"
-          onSubmit={handleSubmit}
-          sx={{
-            mb: 4,
-            p: 3,
-            bgcolor: "white",
-            borderRadius: 2,
-            boxShadow: 3,
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 2,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <TextField
-            label="Person Name"
-            size="small"
-            value={person}
-            onChange={(e) => setPerson(e.target.value)}
-            required
-            sx={{ minWidth: 200 }}
-          />
+        {/* === FORM === */}
+        <Paper sx={{ p: 2, mb: 4 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                label="Person Name"
+                size="small"
+                fullWidth
+                value={person}
+                onChange={(e) => setPerson(e.target.value)}
+                required
+              />
+            </Grid>
 
-          <FormControl size="small" sx={{ minWidth: 150 }}>
-            <InputLabel>Type</InputLabel>
-            <Select
-              value={type}
-              onChange={(e) => {
-                setType(e.target.value);
-                if (e.target.value === "deposit") setCategory("");
-              }}
-              label="Type"
+            <Grid item xs={12} sm={6} md={2}>
+              <FormControl size="small" fullWidth>
+                <InputLabel>Type</InputLabel>
+                <Select
+                  value={type}
+                  label="Type"
+                  onChange={(e) => {
+                    setType(e.target.value);
+                    if (e.target.value === "deposit") setCategory("");
+                  }}
+                >
+                  <MenuItem value="deposit">Deposit</MenuItem>
+                  <MenuItem value="expense">Expense</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {type === "expense" && (
+              <Grid item xs={12} sm={6} md={2}>
+                <TextField
+                  label="Category"
+                  size="small"
+                  fullWidth
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  required
+                />
+              </Grid>
+            )}
+
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                label="Amount (₹)"
+                size="small"
+                type="number"
+                fullWidth
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                required
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={2}>
+              <TextField
+                label="Date"
+                size="small"
+                type="date"
+                fullWidth
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                inputProps={{ max: today.toISOString().slice(0, 10) }}
+                required
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={1}>
+              <Button fullWidth variant="contained" onClick={handleSubmit}>
+                Add
+              </Button>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={2}>
+              <Button fullWidth variant="outlined" onClick={exportToExcel}>
+                Export
+              </Button>
+            </Grid>
+          </Grid>
+        </Paper>
+
+        {/* === FILTERS === */}
+        <Paper sx={{ p: 2, mb: 4 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={3}>
+              <FormControl size="small" fullWidth>
+                <InputLabel>Filter by Person</InputLabel>
+                <Select
+                  value={filterPerson}
+                  label="Filter by Person"
+                  onChange={(e) => setFilterPerson(e.target.value)}
+                >
+                  <MenuItem value="all">All Persons</MenuItem>
+                  {uniquePersons.map((p) => (
+                    <MenuItem key={p} value={p}>
+                      {p}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+              <TextField
+                label="Filter by Month"
+                type="month"
+                size="small"
+                fullWidth
+                value={filterMonth}
+                onChange={(e) => setFilterMonth(e.target.value)}
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6} md={2}>
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={() => {
+                  setFilterPerson("all");
+                  setFilterMonth("");
+                }}
+              >
+                Clear
+              </Button>
+            </Grid>
+          </Grid>
+        </Paper>
+
+        {/* === 📊 CHART SECTION === */}
+        {chartData.length > 0 && (
+          <Paper sx={{ p: 2, mb: 4 }}>
+            <Typography
+              variant="h6"
+              sx={{ mb: 2, textAlign: "center", color: "#0d47a1" }}
             >
-              <MenuItem value="deposit">Deposit</MenuItem>
-              <MenuItem value="expense">Expense</MenuItem>
-            </Select>
-          </FormControl>
-
-          {type === "expense" && (
-            <TextField
-              label="Category"
-              size="small"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              required
-              sx={{ minWidth: 150 }}
-            />
-          )}
-
-          <TextField
-            label="Amount (₹)"
-            size="small"
-            type="number"
-            inputProps={{ step: "any", min: 0 }}
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            required
-            sx={{ minWidth: 150 }}
-          />
-
-          <TextField
-            label="Date"
-            size="small"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            inputProps={{ max: today.toISOString().slice(0, 10) }}
-            sx={{ minWidth: 150 }}
-            required
-          />
-
-          <Button variant="contained" type="submit" sx={{ height: "40px" }}>
-            Submit
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={exportToExcel}
-            sx={{ height: "40px" }}
-          >
-            Export to Excel
-          </Button>
-        </Box>
-
-        {/* Filters */}
-        <Box
-          sx={{
-            mb: 4,
-            display: "flex",
-            gap: 2,
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Filter by Person</InputLabel>
-            <Select
-              value={filterPerson}
-              label="Filter by Person"
-              onChange={(e) => setFilterPerson(e.target.value)}
-            >
-              <MenuItem value="all">All Persons</MenuItem>
-              {uniquePersons.map((p) => (
-                <MenuItem key={p} value={p}>
-                  {p}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-
-          <TextField
-            label="Filter by Month"
-            type="month"
-            value={filterMonth}
-            onChange={(e) => setFilterMonth(e.target.value)}
-            sx={{ minWidth: 150 }}
-            inputProps={{ max: today.toISOString().slice(0, 7) }}
-          />
-
-          <Button
-            variant="outlined"
-            onClick={() => {
-              setFilterPerson("all");
-              setFilterMonth("");
-            }}
-            sx={{ height: "40px" }}
-          >
-            Clear Filters
-          </Button>
-        </Box>
-
-        {/* Display Data */}
-        {Object.keys(groupedData).length === 0 && (
-          <Typography
-            variant="body1"
-            color="text.secondary"
-            sx={{ textAlign: "center" }}
-          >
-            No transactions found.
-          </Typography>
+              Monthly Deposits vs Expenses
+            </Typography>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={chartData}>
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="deposit" fill="#2e7d32" name="Deposits" />
+                <Bar dataKey="expense" fill="#c62828" name="Expenses" />
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
         )}
 
+        {/* === DISPLAY DATA (ORIGINAL MONTHLY VIEW) === */}
         {Object.entries(groupedData).map(([personName, months]) => (
           <Box key={personName} sx={{ mb: 5 }}>
             <Typography
@@ -385,91 +427,53 @@ const MoneyManager = () => {
                 monthEndingBalance,
                 entries,
               }) => (
-                <Paper
-                  key={month}
-                  sx={{ p: 2, mb: 4, bgcolor: "#e3f2fd", boxShadow: 2 }}
-                >
+                <Paper key={month} sx={{ p: 2, mb: 4, bgcolor: "#e3f2fd" }}>
                   <Typography
                     variant="h6"
-                    sx={{ mb: 2, color: "#0d47a1", textAlign: "center" }}
+                    sx={{ mb: 2, textAlign: "center", color: "#0d47a1" }}
                   >
                     {formatMonth(month)}
                   </Typography>
 
-                  {/* Summary Boxes */}
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-around",
-                      mb: 1,
-                      flexWrap: "wrap",
-                      gap: 1,
-                    }}
-                  >
-                    <Box sx={{ textAlign: "center", minWidth: 160 }}>
-                      <Typography
-                        variant="subtitle2"
-                        sx={{ fontWeight: "bold", color: "#0d47a1" }}
-                      >
-                        Starting Balance
-                      </Typography>
-                      <Typography
-                        variant="subtitle1"
-                        sx={{ fontWeight: "bold", color: "#1976d2" }}
-                      >
-                        ₹{monthStartingBalance.toFixed(2)}
-                      </Typography>
-                    </Box>
+                  {/* === SUMMARY BOXES WITH COLORS === */}
+                  <Grid container spacing={2} sx={{ mb: 2 }}>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="subtitle2">Starting</Typography>
+                        <Typography fontWeight="bold" color="#1976d2">
+                          ₹{monthStartingBalance.toFixed(2)}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="subtitle2">Deposits</Typography>
+                        <Typography fontWeight="bold" color="#2e7d32">
+                          ₹{totalDeposits.toFixed(2)}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="subtitle2">Expenses</Typography>
+                        <Typography fontWeight="bold" color="#c62828">
+                          ₹{totalExpenses.toFixed(2)}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={6} sm={3}>
+                      <Box textAlign="center">
+                        <Typography variant="subtitle2">Ending</Typography>
+                        <Typography fontWeight="bold" color="#f57c00">
+                          ₹{monthEndingBalance.toFixed(2)}
+                        </Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
 
-                    <Box sx={{ textAlign: "center", minWidth: 120 }}>
-                      <Typography
-                        variant="subtitle2"
-                        sx={{ fontWeight: "bold", color: "#2e7d32" }}
-                      >
-                        Deposits
-                      </Typography>
-                      <Typography
-                        variant="subtitle1"
-                        sx={{ fontWeight: "bold", color: "#388e3c" }}
-                      >
-                        ₹{totalDeposits.toFixed(2)}
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ textAlign: "center", minWidth: 120 }}>
-                      <Typography
-                        variant="subtitle2"
-                        sx={{ fontWeight: "bold", color: "#b71c1c" }}
-                      >
-                        Expenses
-                      </Typography>
-                      <Typography
-                        variant="subtitle1"
-                        sx={{ fontWeight: "bold", color: "#d32f2f" }}
-                      >
-                        ₹{totalExpenses.toFixed(2)}
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ textAlign: "center", minWidth: 160 }}>
-                      <Typography
-                        variant="subtitle2"
-                        sx={{ fontWeight: "bold", color: "#f57c00" }}
-                      >
-                        Ending Balance
-                      </Typography>
-                      <Typography
-                        variant="subtitle1"
-                        sx={{ fontWeight: "bold", color: "#fb8c00" }}
-                      >
-                        ₹{monthEndingBalance.toFixed(2)}
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  {/* Entries Table */}
-                  <TableContainer>
-                    <Table size="small" aria-label="transactions table">
+                  {/* === TABLE WITH ROW COLORS === */}
+                  <TableContainer sx={{ overflowX: "auto" }}>
+                    <Table size="small">
                       <TableHead>
                         <TableRow>
                           <TableCell>Date</TableCell>
@@ -483,22 +487,39 @@ const MoneyManager = () => {
                       </TableHead>
                       <TableBody>
                         {entries.map((entry) => (
-                          <TableRow key={entry._id || entry.id}>
+                          <TableRow
+                            key={entry._id || entry.id}
+                            sx={{
+                              bgcolor:
+                                entry.type === "deposit"
+                                  ? "#e8f5e9"
+                                  : "#ffebee",
+                            }}
+                          >
                             <TableCell>{entry.date}</TableCell>
                             <TableCell
                               sx={{
                                 textTransform: "capitalize",
                                 color:
                                   entry.type === "deposit"
-                                    ? "#388e3c"
-                                    : "#d32f2f",
+                                    ? "#2e7d32"
+                                    : "#c62828",
                                 fontWeight: "bold",
                               }}
                             >
                               {entry.type}
                             </TableCell>
                             <TableCell>{entry.category}</TableCell>
-                            <TableCell align="right">
+                            <TableCell
+                              align="right"
+                              sx={{
+                                color:
+                                  entry.type === "deposit"
+                                    ? "#2e7d32"
+                                    : "#c62828",
+                                fontWeight: "bold",
+                              }}
+                            >
                               {entry.amount.toFixed(2)}
                             </TableCell>
                             <TableCell align="right">
